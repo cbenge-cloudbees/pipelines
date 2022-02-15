@@ -1,0 +1,96 @@
+pipeline {
+  agent any
+  stages {
+    stage('Init') {
+      steps {
+        echo '***** Initializing ****************************************'
+        script {
+          gv = load "script.groovy"
+          gv.initApp()
+        }
+
+      }
+    }
+
+    stage('Build') {
+      parallel {
+        stage('Build JDK8 Frontend') {
+          steps {
+            echo '***** Building ****************************************'
+            sh 'mvn clean'
+            sh 'mvn -T 4 compile'
+          }
+        }
+
+        stage('Build JDK11 Frontend') {
+          steps {
+            echo 'Building with JDK11'
+          }
+        }
+
+        stage('Build JDK8 Backend') {
+          steps {
+            echo 'Building JDK8 Backend'
+          }
+        }
+
+        stage('Build JDK11 Backend') {
+          steps {
+            echo 'Build JDK11 Backend'
+          }
+        }
+
+      }
+    }
+
+    stage('SonarQube Analysis') {
+      steps {
+        echo '***** SonarQube Analysis ****************************************'
+        sh 'mvn sonar:sonar -Dsonar.login=c971a661a003fa9a12ad79d29d5d96d7a8f26a4c'
+      }
+    }
+
+    stage('Test') {
+      parallel {
+        stage('Test JDK8 Build') {
+          steps {
+            echo '***** Testing  ****************************************'
+            sh 'mvn test'
+          }
+        }
+
+        stage('Test JDK11 Build') {
+          steps {
+            echo 'Testing JDK8 Build'
+          }
+        }
+
+      }
+    }
+
+    stage('Confirm Deploy') {
+      steps {
+        input(message: 'Okay to deploy?', id: '1', ok: 'Yes')
+      }
+    }
+
+    stage('Deploy') {
+      steps {
+        echo '***** Installing  ****************************************'
+        sh 'mvn install'
+        script {
+          gv = load "script.groovy"
+          gv.deployApp()
+        }
+
+        archiveArtifacts(artifacts: 'target/*.jar', fingerprint: true)
+      }
+    }
+
+  }
+  environment {
+    APP_NAME = 'SORTER'
+    APP_VERSION = '1.3.0'
+    SERVER = 'prod-server01'
+  }
+}
